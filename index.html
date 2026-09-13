@@ -798,7 +798,7 @@
                             </select>
                         </div>
                     </div>
-                    <div class="flex justify-between items-center"><span class="text-xs font-black uppercase text-slate-800">Sheets</span><div class="flex gap-1 bg-slate-100 p-1.5 rounded-lg border border-slate-200"><button onclick="switchStaffTab('daily')" id="tab-daily" class="text-[10px] px-4 py-2 rounded-md font-black bg-white text-blue-600 shadow-sm transition-all">DAILY</button><button onclick="switchStaffTab('weekly')" id="tab-weekly" class="text-[10px] px-4 py-2 rounded-md font-bold text-slate-400 transition-all">WEEKLY</button></div></div>
+                    <div class="flex justify-between items-center"><span class="text-xs font-black uppercase text-slate-800">Sheets</span><div class="flex gap-1 bg-slate-100 p-1.5 rounded-lg border border-slate-200"><button onclick="switchStaffTab('weekly')" id="tab-weekly" class="text-[10px] px-4 py-2 rounded-md font-black bg-white text-blue-600 shadow-sm transition-all">WEEKLY</button><button onclick="switchStaffTab('monthly')" id="tab-monthly" class="text-[10px] px-4 py-2 rounded-md font-bold text-slate-400 transition-all">MONTHLY</button></div>
                     
                     <!-- 🌟 NAYA: Voice Search Bar -->
                     <div class="relative w-full flex items-center shadow-sm">
@@ -1146,17 +1146,10 @@
                             <input type="number" id="plan-roi" placeholder="ROI %" class="w-full p-3 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:outline-none">
                             <input type="number" id="plan-duration" placeholder="Total Days/Weeks" class="w-full p-3 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:outline-none">
                             <input type="number" id="plan-insurance-pct" placeholder="Insurance % (e.g. 3)" class="w-full p-3 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:outline-none">
-                            <select id="plan-type" onchange="toggleHybridSetup()" class="col-span-2 w-full p-3 bg-white border border-slate-200 rounded-lg text-[10px] font-bold focus:outline-none">
-                                <option value="daily">Daily (Normal)</option>
-                                <option value="daily-hybrid">Daily (Hybrid EMI)</option>
-                                <option value="weekly">Weekly (Normal)</option>
-                                <option value="weekly-hybrid">Weekly (Hybrid EMI)</option> <!-- NAYA: Weekly Hybrid -->
+                            <select id="plan-type" class="col-span-2 w-full p-3 bg-white border border-slate-200 rounded-lg text-[10px] font-bold focus:outline-none">
+                                <option value="weekly">Weekly (Saptahik)</option>
+                                <option value="monthly">Monthly (Masik)</option>
                             </select>
-                        </div>
-                        <div id="hybrid-setup-box" class="hidden grid-cols-2 gap-2 bg-indigo-100 p-3 rounded-xl mt-2 animate-fade">
-                            <input type="number" id="plan-p1-days" placeholder="Phase 1 Cycles (Days/Wk)" class="w-full p-3 bg-white border border-indigo-200 rounded-lg text-[10px] font-bold focus:outline-none">
-                            <input type="number" id="plan-p1-emi" placeholder="Phase 1 EMI ₹" class="w-full p-3 bg-white border border-indigo-200 rounded-lg text-[10px] font-bold focus:outline-none">
-                            <p class="col-span-2 text-[8px] font-bold text-indigo-500 text-center">Phase 2 remaining EMI will auto-calculate.</p>
                         </div>
                         <button onclick="createNewLoanPlan()" class="btn-fluid w-full bg-indigo-600 text-white font-black py-3 rounded-lg text-[10px] uppercase shadow-md mt-2">Save Master Plan</button>
                         <div id="setup-plan-list" class="mt-4 space-y-2 max-h-[150px] overflow-y-auto"></div>
@@ -1814,7 +1807,7 @@
         // 🌟 REAL BACKEND LINK
         const API_URL = "https://sanshreya-microfinance-api.onrender.com/api/clients"
         
-        let currentActiveStaffTab = 'daily'; 
+        let currentActiveStaffTab = 'weekly';
         let currentlyLoggedInMobile = ''; 
         let currentLoggedInRole = ''; 
         let backupSettledClientMobile = ''; 
@@ -2996,12 +2989,11 @@
             } else { d = new Date(); }
             d.setHours(0,0,0,0);
             
-            let isDaily = (planTypeStr || '').includes('daily');
-            d.setDate(d.getDate() + (isDaily ? 1 : 7)); 
-            
-            // 🛡️ MICROFINANCE HOLIDAY FIX: Daily collection mein Sunday skip karke seedha Monday shift karo
-            if (isDaily && d.getDay() === 0) {
-                d.setDate(d.getDate() + 1); // Skip Sunday to Monday
+            let isMonthly = (planTypeStr || '').includes('monthly');
+            if (isMonthly) {
+                d.setMonth(d.getMonth() + 1);
+            } else {
+                d.setDate(d.getDate() + 7);
             }
             return formatSysDate(d);
         }
@@ -3459,26 +3451,14 @@
             
             // 🌟 BUG FIX 1: The "Zero-Insurance Trap". Agar admin ne dabba khali choda hai toh auto-default (Daily=3%, Weekly=5%) apply karo!
             let rawIns = getSafeValue('plan-insurance-pct');
-            const insPct = rawIns !== "" ? parseFloat(rawIns) : (type.includes('daily') ? 3 : 5);
+            const insPct = rawIns !== "" ? parseFloat(rawIns) : (type === 'monthly' ? 2 : 5);
 
             // FIX 2C: Prevent Negative/Zero/NaN Plan Creation Math Exploits
             if(!name || isNaN(principal) || principal <= 0 || isNaN(roi) || roi < 0 || isNaN(duration) || duration <= 0 || isNaN(insPct) || insPct < 0) { alert("Please fill all plan fields with valid positive numbers."); return; }
 
             let interest = Math.round((principal * roi) / 100);
             let total = principal + interest;
-            let p1Days = 0, p1Emi = 0, p2Days = 0, p2Emi = 0, baseEmi = 0;
-
-            if (type.includes('hybrid')) {
-                p1Days = parseInt(getSafeValue('plan-p1-days'));
-                p1Emi = parseInt(getSafeValue('plan-p1-emi'));
-                if(!p1Days || !p1Emi || p1Days >= duration) { alert("Invalid Phase 1 setup for Hybrid Plan."); return; }
-                p2Days = duration - p1Days;
-                let remAmount = total - (p1Days * p1Emi);
-                if(remAmount <= 0) { alert("Phase 1 EMI is too high! It pays off the whole loan."); return; }
-                p2Emi = Math.round(remAmount / p2Days);
-            } else {
-                baseEmi = Math.round(total / duration);
-            }
+            let baseEmi = Math.round(total / duration);
 
             // 🌟 BUG FIX 2: Prevent Plan Creation Deadlock! (Unlock button if name is duplicate)
             if(loanPlans.some(p => p.name.toLowerCase() === name.toLowerCase())) {
@@ -3489,8 +3469,8 @@
 
             loanPlans.push({
                 id: 'PLN' + Date.now(), name, principal, roi, duration, type, totalPayable: total, interestAmt: interest,
-                insPct: insPct, branches: [...branchList], // 🌟 NAYA: Naya plan by default sabhi branches me ON hoga
-                isHybrid: type.includes('hybrid'), phase1Days: p1Days, phase1Emi: p1Emi, phase2Days: p2Days, phase2Emi: p2Emi, baseEmi
+                insPct: insPct, branches: [...branchList],
+                isHybrid: false, baseEmi
             });
 
             // 🚀 UX FIX: Instant Render. List turant update hogi, double-tap ka chakkar khatam!
@@ -3559,7 +3539,7 @@
                         
                         let emiText = p.isHybrid ? `₹${p.phase1Emi}` : `₹${p.baseEmi}`;
                         let durationText = p.isHybrid ? `${p.phase1Days}+${p.phase2Days} EMIs` : `${p.duration} EMIs`;
-                        let typeTag = p.isHybrid ? 'Hybrid' : (p.type === 'weekly' ? 'Weekly' : 'Daily');
+                        let typeTag = p.type === 'monthly' ? 'Monthly' : 'Weekly';
                         
                         // Smart Search Filter
                         let searchStr = `${p.principal} ${p.name} ${emiText} ${durationText} ${typeTag}`.toLowerCase();
@@ -3659,8 +3639,8 @@
                 let pHtml = '';
                 loanPlans.forEach(p => { 
                     let insDisplay = p.insPct ? ` | Ins: ${p.insPct}%` : ``; 
-                    let typeStr = p.type.includes('weekly') ? 'Wk' : 'd';
-                    let desc = p.isHybrid ? `<span class="text-amber-500 block text-[8px] font-bold mt-1">Hybrid: ${p.phase1Days}${typeStr} @ ₹${p.phase1Emi}, ${p.phase2Days}${typeStr} @ ₹${p.phase2Emi}</span>` : `<span class="text-slate-400 block text-[8px] font-bold mt-1">Normal: ${p.duration} Cycles @ ₹${p.baseEmi}</span>`;
+                    let typeStr = p.type.includes('monthly') ? 'Mo' : 'Wk';
+                    let desc = `<span class="text-slate-400 block text-[8px] font-bold mt-1">${p.duration} Cycles @ ₹${p.baseEmi} / ${typeStr}</span>`;
                     
                     // 🌟 NAYA: Branch Assign Button
                     let bCount = p.branches ? p.branches.length : branchList.length;
@@ -4578,7 +4558,7 @@
                         let pOpts = `<option value="">-- Keep Current Plan --</option>`;
                         loanPlans.forEach(p => {
                             let emiText = p.isHybrid ? `₹${p.phase1Emi}` : `₹${p.baseEmi}`;
-                            let typeTag = p.type === 'daily-hybrid' ? 'Daily Hybrid' : (p.type === 'weekly-hybrid' ? 'Weekly Hybrid' : (p.type === 'weekly' ? 'Weekly' : 'Daily'));
+                            let typeTag = p.type === 'monthly' ? 'Monthly' : 'Weekly';
                             pOpts += `<option value="${p.id}">₹${p.principal.toLocaleString('en-IN')} - ${p.name} [${typeTag}] (EMI: ${emiText})</option>`;
                         });
                         planSelectDropdown.innerHTML = pOpts;
@@ -4972,11 +4952,8 @@
                         
                         // 🚨 CRITICAL LOGIC FIX: Sync Admin Edit End-Date with Actual Disbursement Rules!
                         // Daily loans MUST skip Sundays exactly like they do in new loan creation.
-                        if (serverDb[m].planType === 'daily') {
-                            for (let i = 0; i < safeDur; i++) {
-                                newAppObj.setDate(newAppObj.getDate() + 1);
-                                if (newAppObj.getDay() === 0) newAppObj.setDate(newAppObj.getDate() + 1); // Skip Sunday
-                            }
+                        if (serverDb[m].planType === 'monthly') {
+                            newAppObj.setMonth(newAppObj.getMonth() + safeDur);
                         } else {
                             newAppObj.setDate(newAppObj.getDate() + (safeDur * 7));
                         }
@@ -5563,7 +5540,7 @@
 
             c.outstanding = Math.max(0, parseInt(c.outstanding || 0) - originalAmt);
 
-            let currentEmiToUse = c.isHybrid ? ((c.emisPaidCount < c.phase1Days) ? c.phase1Emi : c.phase2Emi) : (c.cycleEmi || 1);
+            let currentEmiToUse = parseInt(c.cycleEmi) || 1;
             let originalOut = (c.outstanding || 0) + amountLeftForEmi;
             currentEmiToUse = Math.min(currentEmiToUse, originalOut);
 
@@ -6532,11 +6509,8 @@
                 let safeDur = parseInt(c.duration, 10) || 1;
                 
                 // 🌟 BUG FIX: End-Date me Sunday skip karna zaruri hai taaki sahi mahina calculate ho
-                if (c.planType === 'daily') {
-                    for (let i = 0; i < safeDur; i++) {
-                        appDateObj.setDate(appDateObj.getDate() + 1);
-                        if (appDateObj.getDay() === 0) appDateObj.setDate(appDateObj.getDate() + 1); // Skip Sunday
-                    }
+                if (c.planType === 'monthly') {
+                    appDateObj.setMonth(appDateObj.getMonth() + safeDur);
                 } else {
                     appDateObj.setDate(appDateObj.getDate() + (safeDur * 7));
                 }
@@ -7481,7 +7455,7 @@
                 
                 if (typedPaidEmis > 0) {
                     for(let i=0; i<typedPaidEmis; i++) {
-                        let currentPhaseEmi = m.isHybrid ? ((i < m.phase1Days) ? m.phase1Emi : m.phase2Emi) : m.cycleEmi;
+                        let currentPhaseEmi = m.cycleEmi;
                         if (!currentPhaseEmi || currentPhaseEmi <= 0) break; // 🚀 FIX: Prevent infinite loop if EMI is 0 or NaN
                         // FIX 3A: Added explicitly break safeguard to prevent infinite loop RAM crashes if staff types 99999 EMIs
                         if (activeOutstanding >= currentPhaseEmi) {
@@ -7717,7 +7691,7 @@
                 // Handle Hybrid / Normal EMI deductions for backdated loans
                 if (paidEmisVal > 0) {
                     for(let i=0; i<paidEmisVal; i++) {
-                        let currentPhaseEmi = metrics.isHybrid ? ((actualEmisPaid < metrics.phase1Days) ? metrics.phase1Emi : metrics.phase2Emi) : metrics.cycleEmi;
+                        let currentPhaseEmi = metrics.cycleEmi;
                         if (!currentPhaseEmi || currentPhaseEmi <= 0) break; // 🚀 FIX: Prevent infinite loop on submit
                         // FIX 3B: Exact same protection for the actual submit sequence
                         if (actualOutstanding >= currentPhaseEmi) {
@@ -7843,9 +7817,9 @@
         function switchStaffTab(t) { 
             try {
                 currentActiveStaffTab = t; 
-                let d = document.getElementById('tab-daily'); let w = document.getElementById('tab-weekly');
-                if(d) { d.className = t==='daily' ? 'text-[10px] px-5 py-2.5 rounded-lg font-black bg-white text-blue-600 shadow-sm transition-all' : 'text-[10px] px-5 py-2.5 rounded-lg font-bold text-slate-400 hover:text-slate-600 transition-all'; }
+                let w = document.getElementById('tab-weekly'); let m = document.getElementById('tab-monthly');
                 if(w) { w.className = t==='weekly' ? 'text-[10px] px-5 py-2.5 rounded-lg font-black bg-white text-blue-600 shadow-sm transition-all' : 'text-[10px] px-5 py-2.5 rounded-lg font-bold text-slate-400 hover:text-slate-600 transition-all'; }
+                if(m) { m.className = t==='monthly' ? 'text-[10px] px-5 py-2.5 rounded-lg font-black bg-white text-blue-600 shadow-sm transition-all' : 'text-[10px] px-5 py-2.5 rounded-lg font-bold text-slate-400 hover:text-slate-600 transition-all'; }
                 renderStaffLedgerSheets(); 
             } catch(e) {}
         }
@@ -8293,7 +8267,7 @@
                         btn.className = "btn-fluid w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-5 rounded-2xl text-xs uppercase tracking-widest mt-4 shadow-lg shadow-amber-500/30 transition-all cursor-pointer hover-scale pulse-glow"; 
                         btn.innerHTML = "⚠️ Mark All To Upload";
                     } else if (hasUnmarkedOtherTab) {
-                        let missingTabName = currentActiveStaffTab === 'daily' ? 'WEEKLY' : 'DAILY';
+                        let missingTabName = currentActiveStaffTab === 'weekly' ? 'MONTHLY' : 'WEEKLY';
                         btn.className = "btn-fluid w-full bg-rose-500 hover:bg-rose-600 text-white font-black py-5 rounded-2xl text-xs uppercase tracking-widest mt-4 shadow-lg shadow-rose-500/30 transition-all cursor-pointer hover-scale pulse-glow"; 
                         btn.innerHTML = `⚠️ Check ${missingTabName} Tab First`;
                     } else if (readyToUploadCount === 0 && !hasUnmarkedActiveTab && !hasUnmarkedOtherTab) {
@@ -8368,7 +8342,7 @@
                     let msg = "";
                     if (unmarkedCurrentTab > 0) msg += `<p class="text-rose-600 font-black mb-2">⚠️ Isi tab mein <span class="text-lg">${unmarkedCurrentTab} clients</span> unmarked hain.</p>`;
                     if (unmarkedOtherTab > 0) {
-                        let other = currentActiveStaffTab === 'daily' ? 'Weekly' : 'Daily';
+                        let other = currentActiveStaffTab === 'weekly' ? 'Monthly' : 'Weekly';
                         msg += `<p class="text-amber-600 font-black">⚠️ Dhyan dein: ${other} tab mein bhi <span class="text-lg">${unmarkedOtherTab} clients</span> chhut gaye hain!</p>`;
                     }
                     
@@ -8436,7 +8410,7 @@
 
                         if (c.emiSettled === 'bounce') {
                             if (isClientDue) {
-                                let penaltyEmi = c.isHybrid ? ((c.emisPaidCount < c.phase1Days) ? (parseInt(c.phase1Emi)||0) : (parseInt(c.phase2Emi)||0)) : (parseInt(c.cycleEmi) || 1);
+                                let penaltyEmi = parseInt(c.cycleEmi) || 1;
                                 penaltyEmi = Math.min(penaltyEmi, parseInt(c.outstanding) || 0); // 🚀 FIX: Aakhri Kist Bounce limit & NaN Prev
                                 
                                 c.overdue = (c.overdue || 0) + penaltyEmi;
@@ -8532,7 +8506,7 @@
                             c.transactions.push({ date: todayStr, amount: actualAdv, type: 'Custom Pay', mode: advMode });
 
                             while (remainingAdv > 0) {
-                                let currentPhaseEmi = c.isHybrid ? ((c.emisPaidCount < c.phase1Days) ? c.phase1Emi : c.phase2Emi) : (c.cycleEmi || 1);
+                                let currentPhaseEmi = parseInt(c.cycleEmi) || 1;
                                 if (!currentPhaseEmi || currentPhaseEmi <= 0) break;
 
                                 if (remainingAdv >= currentPhaseEmi) {
@@ -9925,9 +9899,9 @@
                     <!-- 🌟 NAYA: DAILY/WEEKLY FILTER FOR ALL LISTS -->
                     <div class="mt-2">
                         <select id="modal-plan-filter" onchange="window.applyCollectFilter()" class="w-full p-3 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-700 shadow-sm focus:outline-none">
-                            <option value="all">📅 All Loans (Daily + Weekly)</option>
-                            <option value="daily">☀️ Daily Loans Only</option>
+                            <option value="all">📅 All Loans (Weekly + Monthly)</option>
                             <option value="weekly">📆 Weekly Loans Only</option>
+                            <option value="monthly">🌙 Monthly Loans Only</option>
                         </select>
                     </div>
                 </div>
