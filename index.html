@@ -798,7 +798,7 @@
                             </select>
                         </div>
                     </div>
-                    <div class="flex justify-between items-center"><span class="text-xs font-black uppercase text-slate-800">Sheets</span><div class="flex gap-1 bg-slate-100 p-1.5 rounded-lg border border-slate-200"><button onclick="switchStaffTab('weekly')" id="tab-weekly" class="text-[10px] px-4 py-2 rounded-md font-black bg-white text-blue-600 shadow-sm transition-all">WEEKLY</button><button onclick="switchStaffTab('monthly')" id="tab-monthly" class="text-[10px] px-4 py-2 rounded-md font-bold text-slate-400 transition-all">MONTHLY</button></div>
+                    <div class="flex justify-between items-center"><span class="text-xs font-black uppercase text-slate-800">Sheets</span><div class="flex gap-1 bg-slate-100 p-1.5 rounded-lg border border-slate-200"><button onclick="switchStaffTab('weekly')" id="tab-weekly" class="text-[10px] px-4 py-2 rounded-md font-black bg-white text-blue-600 shadow-sm transition-all">WEEKLY</button><button onclick="switchStaffTab('monthly')" id="tab-monthly" class="text-[10px] px-4 py-2 rounded-md font-bold text-slate-400 transition-all">MONTHLY</button></div></div>
                     
                     <!-- 🌟 NAYA: Voice Search Bar -->
                     <div class="relative w-full flex items-center shadow-sm">
@@ -6450,12 +6450,9 @@
                     let appDateObj = parseSysDate(c.customAppDate);
                     let safeDur = parseInt(c.duration, 10) || 1;
                     
-                    // 🛡️ FUNCTIONAL FIX: Real End-Date Calculator (Counts only working days for Daily loans)
-                    if (c.planType === 'daily') {
-                        for (let i = 0; i < safeDur; i++) {
-                            appDateObj.setDate(appDateObj.getDate() + 1);
-                            if (appDateObj.getDay() === 0) appDateObj.setDate(appDateObj.getDate() + 1); // Extra day for Sunday
-                        }
+                    // 🛡️ FUNCTIONAL FIX: Real End-Date Calculator
+                    if (c.planType === 'monthly') {
+                        appDateObj.setMonth(appDateObj.getMonth() + safeDur);
                     } else {
                         appDateObj.setDate(appDateObj.getDate() + (safeDur * 7));
                     }
